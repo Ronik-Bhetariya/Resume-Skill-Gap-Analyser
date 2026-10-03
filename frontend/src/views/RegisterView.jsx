@@ -1,10 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { User, Mail, Phone, Lock, Eye, EyeOff, ShieldCheck, ArrowRight, RotateCw, CheckCircle2 } from 'lucide-react';
+import { User, Mail, Phone, Lock, Eye, EyeOff, Sparkles, ArrowRight } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
-  const { initiateRegister, verifyOtpAndRegister, resendOtp, showToast } = useAuth();
+  const { register, showToast } = useAuth();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -18,38 +18,14 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // OTP Modal State
-  const [showOtpModal, setShowOtpModal] = useState(false);
-  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
-  const [timer, setTimer] = useState(120);
-  const [canResend, setCanResend] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-
-  const otpInputsRef = useRef([]);
-
-  // Countdown timer for OTP resend
-  useEffect(() => {
-    let interval = null;
-    if (showOtpModal && timer > 0) {
-      interval = setInterval(() => {
-        setTimer((t) => t - 1);
-      }, 1000);
-    } else if (timer === 0) {
-      setCanResend(true);
-      if (interval) clearInterval(interval);
-    }
-    return () => clearInterval(interval);
-  }, [showOtpModal, timer]);
-
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Step 1: Submit form & trigger OTP
   const handleSubmitForm = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.email || !formData.mobile || !formData.password) {
-      showToast('Please fill in all fields', 'error');
+    if (!formData.name || !formData.email || !formData.password) {
+      showToast('Please fill in all required fields', 'error');
       return;
     }
 
@@ -65,116 +41,24 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
 
     setLoading(true);
     try {
-      const res = await initiateRegister(formData);
-      if (res) {
-        setShowOtpModal(true);
-        setTimer(120);
-        setCanResend(false);
-        setOtpDigits(['', '', '', '', '', '']);
-        // Focus first OTP input box after modal opens
-        setTimeout(() => {
-          if (otpInputsRef.current[0]) {
-            otpInputsRef.current[0].focus();
-          }
-        }, 150);
+      const res = await register(formData);
+      if (res && res.success) {
+        // Trigger celebration confetti
+        try {
+          confetti({
+            particleCount: 90,
+            spread: 70,
+            origin: { y: 0.6 },
+          });
+        } catch (err) {}
+
+        if (onRegisterSuccess) onRegisterSuccess();
       }
     } catch (err) {
-      // Toast already handled in context
+      // Error toast is handled in AuthContext
     } finally {
       setLoading(false);
     }
-  };
-
-  // Handle individual OTP digit input
-  const handleOtpChange = (index, value) => {
-    if (!/^\d*$/.test(value)) return;
-
-    const newDigits = [...otpDigits];
-    newDigits[index] = value.slice(-1);
-    setOtpDigits(newDigits);
-
-    // Auto-advance to next box
-    if (value && index < 5 && otpInputsRef.current[index + 1]) {
-      otpInputsRef.current[index + 1].focus();
-    }
-  };
-
-  const handleOtpKeyDown = (index, e) => {
-    // Backspace auto-retreat
-    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
-      otpInputsRef.current[index - 1].focus();
-    }
-  };
-
-  // Handle paste for full 6-digit OTP
-  const handleOtpPaste = (e) => {
-    e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').trim();
-    if (/^\d{6}$/.test(pastedData)) {
-      const digits = pastedData.split('');
-      setOtpDigits(digits);
-      if (otpInputsRef.current[5]) {
-        otpInputsRef.current[5].focus();
-      }
-    }
-  };
-
-  // Step 2: Verify OTP and complete registration
-  const handleVerifyOtp = async (e) => {
-    if (e) e.preventDefault();
-    const fullOtp = otpDigits.join('');
-    if (fullOtp.length < 6) {
-      showToast('Please enter the complete 6-digit OTP code', 'error');
-      return;
-    }
-
-    setVerifying(true);
-    try {
-      await verifyOtpAndRegister({
-        name: formData.name,
-        email: formData.email,
-        mobile: formData.mobile,
-        password: formData.password,
-        otp: fullOtp,
-      });
-
-      // Confetti celebration
-      try {
-        confetti({
-          particleCount: 80,
-          spread: 70,
-          origin: { y: 0.6 },
-        });
-      } catch (err) {}
-
-      setShowOtpModal(false);
-      if (onRegisterSuccess) onRegisterSuccess();
-    } catch (err) {
-      // Toast already shown
-    } finally {
-      setVerifying(false);
-    }
-  };
-
-  const handleResendOtp = async () => {
-    if (!canResend) return;
-    try {
-      const res = await resendOtp(formData.mobile, formData.email);
-      if (res) {
-        setTimer(120);
-        setCanResend(false);
-        setOtpDigits(['', '', '', '', '', '']);
-        setTimeout(() => {
-          if (otpInputsRef.current[0]) otpInputsRef.current[0].focus();
-        }, 100);
-      }
-    } catch (err) {}
-  };
-
-  const formatTimer = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -183,7 +67,7 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
         {/* Header */}
         <div className="auth-header">
           <h2>Create Account</h2>
-          <p>Join us to analyze your resume and improve your skills</p>
+          <p>Join us to analyze your resume and bridge skill gaps</p>
         </div>
 
         <form onSubmit={handleSubmitForm}>
@@ -221,11 +105,9 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
             </div>
           </div>
 
-          {/* Mobile Number for OTP Verification */}
+          {/* Mobile Number */}
           <div className="form-group">
-            <label className="form-label">
-              Mobile Number <span style={{ color: '#2563eb', fontSize: '0.8rem' }}>(OTP Verification)</span>
-            </label>
+            <label className="form-label">Mobile Number</label>
             <div className="input-with-icon">
               <Phone size={18} className="input-icon" />
               <input
@@ -235,7 +117,6 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
                 onChange={handleChange}
                 placeholder="Enter your 10-digit mobile number"
                 className="form-input"
-                required
               />
             </div>
           </div>
@@ -250,7 +131,7 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
-                placeholder="Enter password"
+                placeholder="Enter password (min 6 chars)"
                 className="form-input"
                 required
               />
@@ -295,7 +176,7 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
             className="btn-primary"
             style={{ width: '100%', padding: '0.85rem' }}
           >
-            {loading ? 'Sending Verification Code...' : 'Sign Up'}
+            {loading ? 'Creating Account...' : 'Create Account'}
           </button>
         </form>
 
@@ -309,105 +190,6 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
           </span>
         </div>
       </div>
-
-      {/* =========================================================
-          Live OTP Verification Modal
-          ========================================================= */}
-      {showOtpModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '440px', textAlign: 'center' }}>
-            {/* Shield Check badge icon */}
-            <div
-              style={{
-                width: '64px',
-                height: '64px',
-                borderRadius: '50%',
-                background: '#eff6ff',
-                color: '#2563eb',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 1.25rem auto',
-                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.2)',
-              }}
-            >
-              <ShieldCheck size={32} />
-            </div>
-
-            <h3 style={{ fontSize: '1.45rem', color: '#0f172a', marginBottom: '0.4rem' }}>
-              Enter Verification Code
-            </h3>
-            <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
-              We have sent a 6-digit verification code to
-            </p>
-            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '1rem', marginBottom: '1.25rem' }}>
-              {formData.email} {formData.mobile ? `(+91 ${formData.mobile})` : ''}
-            </div>
-
-            {/* 6 Digit Input Boxes */}
-            <div className="otp-inputs-grid" onPaste={handleOtpPaste}>
-              {otpDigits.map((digit, idx) => (
-                <input
-                  key={idx}
-                  ref={(el) => (otpInputsRef.current[idx] = el)}
-                  type="text"
-                  maxLength={1}
-                  value={digit}
-                  onChange={(e) => handleOtpChange(idx, e.target.value)}
-                  onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                  className="otp-box"
-                  placeholder="-"
-                />
-              ))}
-            </div>
-
-            {/* Timer & Resend */}
-            <div style={{ margin: '1.25rem 0', fontSize: '0.9rem', color: '#64748b' }}>
-              {canResend ? (
-                <button
-                  type="button"
-                  onClick={handleResendOtp}
-                  style={{
-                    background: 'none',
-                    color: '#2563eb',
-                    fontWeight: 600,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <RotateCw size={15} />
-                  <span>Resend Verification Code</span>
-                </button>
-              ) : (
-                <span>
-                  Resend code in <strong style={{ color: '#1e293b' }}>{formatTimer(timer)}</strong>
-                </span>
-              )}
-            </div>
-
-            {/* Verify CTA */}
-            <button
-              onClick={handleVerifyOtp}
-              disabled={verifying}
-              className="btn-primary"
-              style={{ width: '100%', padding: '0.85rem' }}
-            >
-              {verifying ? 'Verifying Code & Creating Account...' : 'Verify & Complete Registration'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowOtpModal(false)}
-              className="btn-secondary"
-              style={{ width: '100%', marginTop: '0.75rem', padding: '0.65rem' }}
-            >
-              Change Details
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

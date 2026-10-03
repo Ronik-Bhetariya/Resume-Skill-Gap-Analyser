@@ -62,50 +62,20 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
-  // Initiate Registration & Send Mobile OTP
-  const initiateRegister = async (formData) => {
+  // Direct Registration & Login
+  const register = async (formData) => {
     try {
       const res = await axios.post('/api/auth/register', formData);
-      if (res.data.success) {
-        showToast(res.data.message, 'success');
-        return res.data;
-      }
-    } catch (error) {
-      const msg = error.response?.data?.message || 'Registration failed';
-      showToast(msg, 'error');
-      throw new Error(msg);
-    }
-  };
-
-  // Step 2: Verify Mobile OTP and Complete Registration
-  const verifyOtpAndRegister = async (payload) => {
-    try {
-      const res = await axios.post('/api/auth/verify-otp', payload);
       if (res.data.success) {
         setUser(res.data.user);
         setToken(res.data.token);
         localStorage.setItem('user', JSON.stringify(res.data.user));
         localStorage.setItem('token', res.data.token);
-        showToast('Registration complete! Welcome to Resume Skill Gap Analyzer.', 'success');
+        showToast('Registration successful! Welcome to Resume Skill Gap Analyzer.', 'success');
         return res.data;
       }
     } catch (error) {
-      const msg = error.response?.data?.message || 'OTP verification failed';
-      showToast(msg, 'error');
-      throw new Error(msg);
-    }
-  };
-
-  // Resend OTP
-  const resendOtp = async (mobile, email = '', purpose = 'registration') => {
-    try {
-      const res = await axios.post('/api/auth/resend-otp', { mobile, email, purpose });
-      if (res.data.success) {
-        showToast(res.data.message || 'New OTP sent to your email & mobile.', 'info');
-        return res.data;
-      }
-    } catch (error) {
-      const msg = error.response?.data?.message || 'Failed to resend OTP';
+      const msg = error.response?.data?.message || 'Registration failed';
       showToast(msg, 'error');
       throw new Error(msg);
     }
@@ -145,9 +115,8 @@ export function AuthProvider({ children }) {
         user,
         token,
         dbStatus,
-        initiateRegister,
-        verifyOtpAndRegister,
-        resendOtp,
+        register,
+        initiateRegister: register,
         login,
         logout,
         showToast,

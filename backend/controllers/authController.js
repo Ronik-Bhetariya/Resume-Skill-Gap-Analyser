@@ -12,18 +12,18 @@ const generateToken = (id) => {
 };
 
 /**
- * @desc Step 1: Initiate Registration & Send Mobile OTP
+ * @desc Direct User Registration (No OTP required)
  * @route POST /api/auth/register
  */
 const register = async (req, res) => {
   try {
     const { name, email, mobile, password, confirmPassword } = req.body;
 
-    if (!name || !email || !mobile || !password) {
+    if (!name || !email || !password) {
       return res.status(400).json({ success: false, message: 'Please provide all required fields' });
     }
 
-    if (password !== confirmPassword) {
+    if (confirmPassword && password !== confirmPassword) {
       return res.status(400).json({ success: false, message: 'Passwords do not match' });
     }
 
@@ -31,33 +31,48 @@ const register = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
     }
 
-    // Check if user already exists and verified
-    const existingUser = await User.findOne({
-      $or: [{ email: email.toLowerCase() }, { mobile: mobile.replace(/[\s-]/g, '') }]
-    });
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanMobile = (mobile || '').replace(/[\s-]/g, '');
 
-    if (existingUser && existingUser.isVerified) {
+    // Check if user already exists
+    const query = [{ email: cleanEmail }];
+    if (cleanMobile) {
+      query.push({ mobile: cleanMobile });
+    }
+
+    const existingUser = await User.findOne({ $or: query });
+
+    if (existingUser) {
       return res.status(400).json({
         success: false,
         message: 'An account with this email or mobile number already exists. Please login.'
       });
     }
 
-    // Generate & send OTP
-    const otpResult = await sendMobileOtp({
-      mobile,
-      email,
-      purpose: 'registration'
+    // Directly create new user in MongoDB
+    const user = await User.create({
+      name: name.trim(),
+      email: cleanEmail,
+      mobile: cleanMobile || 'N/A',
+      password: password,
+      isVerified: true,
+      targetRole: 'Software Developer'
     });
 
-    return res.status(200).json({
+    const token = generateToken(user._id);
+
+    return res.status(201).json({
       success: true,
-      message: 'Verification OTP has been sent to your email and mobile number. Please verify to complete registration.',
-      data: {
-        name,
-        email: email.toLowerCase(),
-        mobile: otpResult.mobile,
-        expiresInMinutes: otpResult.expiresInMinutes
+      message: 'Account created successfully!',
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        mobile: user.mobile,
+        targetRole: user.targetRole,
+        isVerified: user.isVerified,
+        createdAt: user.createdAt
       }
     });
   } catch (error) {

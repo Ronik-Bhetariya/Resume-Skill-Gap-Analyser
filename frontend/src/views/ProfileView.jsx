@@ -81,10 +81,10 @@ export default function ProfileView() {
             </div>
             <div>
               <div style={{ fontWeight: 700, color: '#065f46', fontSize: '0.95rem' }}>
-                Mobile Number Verified
+                Account Active & Verified
               </div>
               <div style={{ color: '#047857', fontSize: '0.82rem' }}>
-                Your account is protected with mobile OTP verification.
+                Your account is in good standing.
               </div>
             </div>
           </div>
@@ -152,7 +152,7 @@ export default function ProfileView() {
 
             {/* Mobile (Readonly) */}
             <div className="form-group">
-              <label className="form-label">Verified Mobile Number</label>
+              <label className="form-label">Mobile Number</label>
               <div className="input-with-icon">
                 <Phone size={18} className="input-icon" />
                 <input

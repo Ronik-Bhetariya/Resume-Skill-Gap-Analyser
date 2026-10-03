@@ -21,7 +21,6 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
   // OTP Modal State
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
-  const [demoOtpCode, setDemoOtpCode] = useState('');
   const [timer, setTimer] = useState(120);
   const [canResend, setCanResend] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -46,7 +45,7 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Step 1: Submit form & trigger Mobile OTP
+  // Step 1: Submit form & trigger OTP
   const handleSubmitForm = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.email || !formData.mobile || !formData.password) {
@@ -67,17 +66,17 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
     setLoading(true);
     try {
       const res = await initiateRegister(formData);
-      if (res && res.data) {
-        setDemoOtpCode(res.data.demoOtp || '123456');
+      if (res) {
         setShowOtpModal(true);
         setTimer(120);
         setCanResend(false);
+        setOtpDigits(['', '', '', '', '', '']);
         // Focus first OTP input box after modal opens
         setTimeout(() => {
           if (otpInputsRef.current[0]) {
             otpInputsRef.current[0].focus();
           }
-        }, 100);
+        }, 150);
       }
     } catch (err) {
       // Toast already handled in context
@@ -107,12 +106,16 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
     }
   };
 
-  const handleQuickFillDemoOtp = () => {
-    if (demoOtpCode) {
-      const digits = demoOtpCode.split('').slice(0, 6);
-      while (digits.length < 6) digits.push('0');
+  // Handle paste for full 6-digit OTP
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').trim();
+    if (/^\d{6}$/.test(pastedData)) {
+      const digits = pastedData.split('');
       setOtpDigits(digits);
-      showToast('Demo OTP auto-filled!', 'info');
+      if (otpInputsRef.current[5]) {
+        otpInputsRef.current[5].focus();
+      }
     }
   };
 
@@ -121,7 +124,7 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
     if (e) e.preventDefault();
     const fullOtp = otpDigits.join('');
     if (fullOtp.length < 6) {
-      showToast('Please enter the full 6-digit OTP', 'error');
+      showToast('Please enter the complete 6-digit OTP code', 'error');
       return;
     }
 
@@ -156,12 +159,14 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
   const handleResendOtp = async () => {
     if (!canResend) return;
     try {
-      const res = await resendOtp(formData.mobile);
+      const res = await resendOtp(formData.mobile, formData.email);
       if (res) {
-        setDemoOtpCode(res.demoOtp || '123456');
         setTimer(120);
         setCanResend(false);
         setOtpDigits(['', '', '', '', '', '']);
+        setTimeout(() => {
+          if (otpInputsRef.current[0]) otpInputsRef.current[0].focus();
+        }, 100);
       }
     } catch (err) {}
   };
@@ -175,7 +180,7 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
   return (
     <div className="auth-wrapper">
       <div className="auth-card">
-        {/* Header matching prototype screen 2 */}
+        {/* Header */}
         <div className="auth-header">
           <h2>Create Account</h2>
           <p>Join us to analyze your resume and improve your skills</p>
@@ -290,7 +295,7 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
             className="btn-primary"
             style={{ width: '100%', padding: '0.85rem' }}
           >
-            {loading ? 'Sending OTP to Mobile...' : 'Sign Up'}
+            {loading ? 'Sending Verification Code...' : 'Sign Up'}
           </button>
         </form>
 
@@ -306,12 +311,12 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
       </div>
 
       {/* =========================================================
-          Mobile OTP Verification Modal
+          Live OTP Verification Modal
           ========================================================= */}
       {showOtpModal && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '440px', textAlign: 'center' }}>
-            {/* Phone badge icon */}
+            {/* Shield Check badge icon */}
             <div
               style={{
                 width: '64px',
@@ -326,45 +331,21 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
                 boxShadow: '0 4px 14px rgba(37, 99, 235, 0.2)',
               }}
             >
-              <Phone size={30} />
+              <ShieldCheck size={32} />
             </div>
 
             <h3 style={{ fontSize: '1.45rem', color: '#0f172a', marginBottom: '0.4rem' }}>
-              Verify Mobile Number
+              Enter Verification Code
             </h3>
             <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
-              We have sent a 6-digit verification OTP code to
+              We have sent a 6-digit verification code to
             </p>
-            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '1.05rem', marginBottom: '1.25rem' }}>
-              +91 {formData.mobile}
+            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '1rem', marginBottom: '1.25rem' }}>
+              {formData.email} {formData.mobile ? `(+91 ${formData.mobile})` : ''}
             </div>
 
-            {/* Quick Fill Demo Chip */}
-            {demoOtpCode && (
-              <div
-                onClick={handleQuickFillDemoOtp}
-                style={{
-                  background: '#f0fdf4',
-                  border: '1px dashed #86efac',
-                  color: '#166534',
-                  padding: '0.4rem 0.8rem',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.82rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  cursor: 'pointer',
-                  marginBottom: '1rem',
-                }}
-                title="Click to auto-fill demo OTP"
-              >
-                <CheckCircle2 size={15} color="#16a34a" />
-                <span>Demo OTP: <b>{demoOtpCode}</b> (Click to fill)</span>
-              </div>
-            )}
-
             {/* 6 Digit Input Boxes */}
-            <div className="otp-inputs-grid">
+            <div className="otp-inputs-grid" onPaste={handleOtpPaste}>
               {otpDigits.map((digit, idx) => (
                 <input
                   key={idx}
@@ -375,6 +356,7 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
                   onChange={(e) => handleOtpChange(idx, e.target.value)}
                   onKeyDown={(e) => handleOtpKeyDown(idx, e)}
                   className="otp-box"
+                  placeholder="-"
                 />
               ))}
             </div>
@@ -392,10 +374,11 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '0.4rem',
+                    cursor: 'pointer',
                   }}
                 >
                   <RotateCw size={15} />
-                  <span>Resend OTP Code</span>
+                  <span>Resend Verification Code</span>
                 </button>
               ) : (
                 <span>
@@ -411,7 +394,7 @@ export default function RegisterView({ onLoginClick, onRegisterSuccess }) {
               className="btn-primary"
               style={{ width: '100%', padding: '0.85rem' }}
             >
-              {verifying ? 'Verifying OTP & Registering...' : 'Verify & Complete Registration'}
+              {verifying ? 'Verifying Code & Creating Account...' : 'Verify & Complete Registration'}
             </button>
 
             <button

@@ -10,7 +10,7 @@ export default function ResumeResultView({
   onNavigateToGap,
   onNavigateToSuggestions,
 }) {
-  const { showToast } = useAuth();
+  const { user, showToast } = useAuth();
 
   const data = analysisData || {};
   const targetRole = data.targetRole || { roleId: 'software-developer', title: 'Software Developer' };
@@ -192,28 +192,28 @@ export default function ResumeResultView({
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <span style={{ color: '#64748b', fontSize: '0.92rem', fontWeight: 500 }}>Name</span>
               <span style={{ color: '#0f172a', fontWeight: 600, fontSize: '0.95rem' }}>
-                {candidateInfo.name || 'Ronik Bhetariya'}
+                {candidateInfo.name || user?.name || 'Candidate'}
               </span>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <span style={{ color: '#64748b', fontSize: '0.92rem', fontWeight: 500 }}>Email</span>
               <span style={{ color: '#0f172a', fontWeight: 600, fontSize: '0.95rem' }}>
-                {candidateInfo.email || 'ronik@example.com'}
+                {candidateInfo.email || user?.email || 'Not Specified'}
               </span>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <span style={{ color: '#64748b', fontSize: '0.92rem', fontWeight: 500 }}>Experience</span>
               <span style={{ color: '#0f172a', fontWeight: 600, fontSize: '0.95rem' }}>
-                {candidateInfo.experience || '2 Years'}
+                {candidateInfo.experience || 'Not Specified'}
               </span>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <span style={{ color: '#64748b', fontSize: '0.92rem', fontWeight: 500 }}>Education</span>
               <span style={{ color: '#0f172a', fontWeight: 600, fontSize: '0.95rem', textAlign: 'right', maxWidth: '200px' }}>
-                {candidateInfo.education || 'B.E. Information Technology'}
+                {candidateInfo.education || 'Not Specified'}
               </span>
             </div>
           </div>

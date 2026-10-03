@@ -97,11 +97,11 @@ export function AuthProvider({ children }) {
   };
 
   // Resend OTP
-  const resendOtp = async (mobile, purpose = 'registration') => {
+  const resendOtp = async (mobile, email = '', purpose = 'registration') => {
     try {
-      const res = await axios.post('/api/auth/resend-otp', { mobile, purpose });
+      const res = await axios.post('/api/auth/resend-otp', { mobile, email, purpose });
       if (res.data.success) {
-        showToast(`New OTP sent! (Demo OTP: ${res.data.demoOtp})`, 'info');
+        showToast(res.data.message || 'New OTP sent to your email & mobile.', 'info');
         return res.data;
       }
     } catch (error) {

@@ -6,13 +6,19 @@ import axios from 'axios';
 export default function ProfileView() {
   const { user, token, showToast } = useAuth();
 
-  const [name, setName] = useState(user?.name || 'Ronik Bhetariya');
+  const [name, setName] = useState(user?.name || '');
   const [targetRole, setTargetRole] = useState(user?.targetRole || 'Software Developer');
-  const [bio, setBio] = useState(
-    user?.bio ||
-      'Passionate fullstack software developer aspiring to master cloud technologies, scalable microservices, and distributed backend systems.'
-  );
+  const [bio, setBio] = useState(user?.bio || '');
   const [saving, setSaving] = useState(false);
+
+  // Sync state if user changes
+  React.useEffect(() => {
+    if (user) {
+      if (user.name) setName(user.name);
+      if (user.targetRole) setTargetRole(user.targetRole);
+      if (user.bio) setBio(user.bio);
+    }
+  }, [user]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -136,7 +142,7 @@ export default function ProfileView() {
                 <Mail size={18} className="input-icon" />
                 <input
                   type="email"
-                  value={user?.email || 'ronik@example.com'}
+                  value={user?.email || 'Not Specified'}
                   disabled
                   className="form-input"
                   style={{ background: '#f8fafc', color: '#64748b' }}
@@ -151,7 +157,7 @@ export default function ProfileView() {
                 <Phone size={18} className="input-icon" />
                 <input
                   type="text"
-                  value={user?.mobile ? `+91 ${user.mobile}` : '+91 9876543210'}
+                  value={user?.mobile ? (user.mobile.startsWith('+') ? user.mobile : `+91 ${user.mobile}`) : 'Not Specified'}
                   disabled
                   className="form-input"
                   style={{ background: '#f8fafc', color: '#64748b' }}

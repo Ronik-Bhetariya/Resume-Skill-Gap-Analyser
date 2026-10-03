@@ -5,8 +5,8 @@ import { Mail, Lock, Eye, EyeOff, Sparkles, Check } from 'lucide-react';
 export default function LoginView({ onSignUpClick, onLoginSuccess }) {
   const { login, showToast } = useAuth();
 
-  const [identifier, setIdentifier] = useState('ronik@example.com');
-  const [password, setPassword] = useState('Password123!');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -29,63 +29,13 @@ export default function LoginView({ onSignUpClick, onLoginSuccess }) {
     }
   };
 
-  const handleDemoLogin = async () => {
-    setIdentifier('ronik@example.com');
-    setPassword('Password123!');
-    setLoading(true);
-    try {
-      await login('ronik@example.com', 'Password123!');
-      if (onLoginSuccess) onLoginSuccess();
-    } catch (err) {
-      // Fallback
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="auth-wrapper">
       <div className="auth-card">
-        {/* Header matching prototype screen 3 */}
+        {/* Header */}
         <div className="auth-header">
           <h2>Welcome Back</h2>
           <p>Login to continue to your account</p>
-        </div>
-
-        {/* 1-Click Quick Demo Bar */}
-        <div
-          style={{
-            background: '#eff6ff',
-            border: '1px solid #bfdbfe',
-            borderRadius: '0.75rem',
-            padding: '0.75rem 1rem',
-            marginBottom: '1.5rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ fontSize: '0.82rem', color: '#1e40af' }}>
-            <strong>Demo Account:</strong> ronik@example.com
-          </div>
-          <button
-            type="button"
-            onClick={handleDemoLogin}
-            style={{
-              background: '#2563eb',
-              color: '#ffffff',
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              padding: '0.35rem 0.75rem',
-              borderRadius: '0.4rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.3rem',
-            }}
-          >
-            <Sparkles size={13} />
-            <span>1-Click Demo</span>
-          </button>
         </div>
 
         <form onSubmit={handleSubmit}>

@@ -52,12 +52,11 @@ const register = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'OTP has been sent to your mobile number. Please verify to complete registration.',
+      message: 'Verification OTP has been sent to your email and mobile number. Please verify to complete registration.',
       data: {
         name,
         email: email.toLowerCase(),
         mobile: otpResult.mobile,
-        demoOtp: otpResult.demoOtp, // Provided for easy demo verification
         expiresInMinutes: otpResult.expiresInMinutes
       }
     });
@@ -75,13 +74,14 @@ const verifyOtpAndRegister = async (req, res) => {
   try {
     const { name, email, mobile, password, otp } = req.body;
 
-    if (!mobile || !otp) {
-      return res.status(400).json({ success: false, message: 'Mobile number and OTP are required' });
+    if ((!mobile && !email) || !otp) {
+      return res.status(400).json({ success: false, message: 'Contact information (mobile/email) and OTP are required' });
     }
 
     // Verify OTP in MongoDB
     const verification = await verifyMobileOtp({
       mobile,
+      email,
       otp,
       purpose: 'registration'
     });
@@ -92,13 +92,16 @@ const verifyOtpAndRegister = async (req, res) => {
 
     // Check if unverified user document exists or create a fresh one
     let user = await User.findOne({
-      $or: [{ email: email ? email.toLowerCase() : '' }, { mobile: mobile.replace(/[\s-]/g, '') }]
+      $or: [
+        ...(email ? [{ email: email.toLowerCase() }] : []),
+        ...(mobile ? [{ mobile: mobile.replace(/[\s-]/g, '') }] : [])
+      ]
     });
 
     if (user) {
       user.name = name || user.name;
       user.email = email ? email.toLowerCase() : user.email;
-      user.mobile = mobile.replace(/[\s-]/g, '');
+      user.mobile = mobile ? mobile.replace(/[\s-]/g, '') : user.mobile;
       if (password) user.password = password;
       user.isVerified = true;
       await user.save();
@@ -106,7 +109,7 @@ const verifyOtpAndRegister = async (req, res) => {
       user = await User.create({
         name: name || 'User',
         email: (email || `user_${Date.now()}@example.com`).toLowerCase(),
-        mobile: mobile.replace(/[\s-]/g, ''),
+        mobile: (mobile || '').replace(/[\s-]/g, ''),
         password: password || 'DefaultPass123!',
         isVerified: true,
         targetRole: 'Software Developer'
@@ -136,23 +139,22 @@ const verifyOtpAndRegister = async (req, res) => {
 };
 
 /**
- * @desc Resend OTP for mobile verification
+ * @desc Resend OTP for verification
  * @route POST /api/auth/resend-otp
  */
 const resendOtp = async (req, res) => {
   try {
-    const { mobile, purpose = 'registration' } = req.body;
+    const { mobile, email, purpose = 'registration' } = req.body;
 
-    if (!mobile) {
-      return res.status(400).json({ success: false, message: 'Mobile number is required' });
+    if (!mobile && !email) {
+      return res.status(400).json({ success: false, message: 'Mobile number or email is required to resend OTP' });
     }
 
-    const otpResult = await sendMobileOtp({ mobile, purpose });
+    await sendMobileOtp({ mobile, email, purpose });
 
     return res.status(200).json({
       success: true,
-      message: 'New OTP sent successfully!',
-      demoOtp: otpResult.demoOtp,
+      message: 'A fresh OTP verification code has been dispatched!',
     });
   } catch (error) {
     console.error('Resend OTP Error:', error);

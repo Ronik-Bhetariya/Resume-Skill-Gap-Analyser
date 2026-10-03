@@ -9,6 +9,16 @@ dotenv.config();
 
 const app = express();
 
+// Automatically ensure MongoDB is connected before handling any API requests
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+  } catch (err) {
+    console.error('DB connect middleware error:', err.message);
+  }
+  next();
+});
+
 // Middlewares
 app.use(cors({
   origin: '*',
@@ -56,15 +66,17 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-const start = async () => {
-  await connectDB();
-  app.listen(PORT, () => {
-    console.log(`\n======================================================`);
-    console.log(`🚀 Resume Skill Gap Analyzer Server running on port ${PORT}`);
-    console.log(`📡 Base API URL: http://localhost:${PORT}/api`);
-    console.log(`🏥 Health Check: http://localhost:${PORT}/api/health`);
-    console.log(`======================================================\n`);
+// Start standalone HTTP server when executed directly (local development)
+if (require.main === module || !process.env.VERCEL) {
+  connectDB().then(() => {
+    app.listen(PORT, () => {
+      console.log(`\n======================================================`);
+      console.log(`🚀 Resume Skill Gap Analyzer Server running on port ${PORT}`);
+      console.log(`📡 Base API URL: http://localhost:${PORT}/api`);
+      console.log(`🏥 Health Check: http://localhost:${PORT}/api/health`);
+      console.log(`======================================================\n`);
+    });
   });
-};
+}
 
-start();
+module.exports = app;

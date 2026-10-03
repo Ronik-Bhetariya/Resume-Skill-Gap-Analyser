@@ -1,0 +1,272 @@
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+const { sendMobileOtp, verifyMobileOtp } = require('../services/otpService');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'resume_skill_gap_secret_key_2026_super_secure';
+
+// Helper to generate JWT Token
+const generateToken = (id) => {
+  return jwt.sign({ id }, JWT_SECRET, {
+    expiresIn: '30d',
+  });
+};
+
+/**
+ * @desc Step 1: Initiate Registration & Send Mobile OTP
+ * @route POST /api/auth/register
+ */
+const register = async (req, res) => {
+  try {
+    const { name, email, mobile, password, confirmPassword } = req.body;
+
+    if (!name || !email || !mobile || !password) {
+      return res.status(400).json({ success: false, message: 'Please provide all required fields' });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({ success: false, message: 'Passwords do not match' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
+    }
+
+    // Check if user already exists and verified
+    const existingUser = await User.findOne({
+      $or: [{ email: email.toLowerCase() }, { mobile: mobile.replace(/[\s-]/g, '') }]
+    });
+
+    if (existingUser && existingUser.isVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'An account with this email or mobile number already exists. Please login.'
+      });
+    }
+
+    // Generate & send OTP
+    const otpResult = await sendMobileOtp({
+      mobile,
+      email,
+      purpose: 'registration'
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP has been sent to your mobile number. Please verify to complete registration.',
+      data: {
+        name,
+        email: email.toLowerCase(),
+        mobile: otpResult.mobile,
+        demoOtp: otpResult.demoOtp, // Provided for easy demo verification
+        expiresInMinutes: otpResult.expiresInMinutes
+      }
+    });
+  } catch (error) {
+    console.error('Registration Error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Server error during registration' });
+  }
+};
+
+/**
+ * @desc Step 2: Verify OTP and Create / Activate Account in MongoDB
+ * @route POST /api/auth/verify-otp
+ */
+const verifyOtpAndRegister = async (req, res) => {
+  try {
+    const { name, email, mobile, password, otp } = req.body;
+
+    if (!mobile || !otp) {
+      return res.status(400).json({ success: false, message: 'Mobile number and OTP are required' });
+    }
+
+    // Verify OTP in MongoDB
+    const verification = await verifyMobileOtp({
+      mobile,
+      otp,
+      purpose: 'registration'
+    });
+
+    if (!verification.success) {
+      return res.status(400).json({ success: false, message: verification.message });
+    }
+
+    // Check if unverified user document exists or create a fresh one
+    let user = await User.findOne({
+      $or: [{ email: email ? email.toLowerCase() : '' }, { mobile: mobile.replace(/[\s-]/g, '') }]
+    });
+
+    if (user) {
+      user.name = name || user.name;
+      user.email = email ? email.toLowerCase() : user.email;
+      user.mobile = mobile.replace(/[\s-]/g, '');
+      if (password) user.password = password;
+      user.isVerified = true;
+      await user.save();
+    } else {
+      user = await User.create({
+        name: name || 'User',
+        email: (email || `user_${Date.now()}@example.com`).toLowerCase(),
+        mobile: mobile.replace(/[\s-]/g, ''),
+        password: password || 'DefaultPass123!',
+        isVerified: true,
+        targetRole: 'Software Developer'
+      });
+    }
+
+    const token = generateToken(user._id);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Account verified and created successfully!',
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        mobile: user.mobile,
+        targetRole: user.targetRole,
+        isVerified: user.isVerified,
+        createdAt: user.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('Verify OTP Error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Server error during OTP verification' });
+  }
+};
+
+/**
+ * @desc Resend OTP for mobile verification
+ * @route POST /api/auth/resend-otp
+ */
+const resendOtp = async (req, res) => {
+  try {
+    const { mobile, purpose = 'registration' } = req.body;
+
+    if (!mobile) {
+      return res.status(400).json({ success: false, message: 'Mobile number is required' });
+    }
+
+    const otpResult = await sendMobileOtp({ mobile, purpose });
+
+    return res.status(200).json({
+      success: true,
+      message: 'New OTP sent successfully!',
+      demoOtp: otpResult.demoOtp,
+    });
+  } catch (error) {
+    console.error('Resend OTP Error:', error);
+    return res.status(500).json({ success: false, message: 'Error resending OTP' });
+  }
+};
+
+/**
+ * @desc Login user with Email or Mobile + Password
+ * @route POST /api/auth/login
+ */
+const login = async (req, res) => {
+  try {
+    const { identifier, password } = req.body; // identifier can be email or mobile
+
+    if (!identifier || !password) {
+      return res.status(400).json({ success: false, message: 'Please provide email/mobile and password' });
+    }
+
+    const cleanIdentifier = identifier.trim();
+    const user = await User.findOne({
+      $or: [
+        { email: cleanIdentifier.toLowerCase() },
+        { mobile: cleanIdentifier.replace(/[\s-]/g, '') }
+      ]
+    });
+
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials. User not found.' });
+    }
+
+    const isMatch = await user.matchPassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials. Password incorrect.' });
+    }
+
+    const token = generateToken(user._id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Login successful!',
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        mobile: user.mobile,
+        targetRole: user.targetRole,
+        isVerified: user.isVerified,
+        createdAt: user.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('Login Error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Server error during login' });
+  }
+};
+
+/**
+ * @desc Get current logged-in user profile
+ * @route GET /api/auth/me
+ */
+const getMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    return res.status(200).json({ success: true, user });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Error fetching user profile' });
+  }
+};
+
+/**
+ * @desc Update user profile
+ * @route PUT /api/auth/profile
+ */
+const updateProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const { name, targetRole, bio } = req.body;
+    if (name) user.name = name;
+    if (targetRole) user.targetRole = targetRole;
+    if (bio !== undefined) user.bio = bio;
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully!',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        mobile: user.mobile,
+        targetRole: user.targetRole,
+        bio: user.bio
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Error updating profile' });
+  }
+};
+
+module.exports = {
+  register,
+  verifyOtpAndRegister,
+  resendOtp,
+  login,
+  getMe,
+  updateProfile,
+};
